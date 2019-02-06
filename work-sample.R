@@ -10,6 +10,7 @@ library("janitor")
 library("skimr")
 library("psych")
 library("ggcorrplot")
+library("lavaan")
 
 
 # Step 2: read in and reformat necessary data ---------
@@ -295,5 +296,131 @@ data_eda %>%
   select(perf_overall_avg, fit_index) %>% 
   corr.test(., use = "pairwise")
 
-  
+# Try other composites
+model <-'perf =~ oct_17_closed + nov_17_closed + dec_17_closed + jan_18_closed + feb_18_closed + 
+mar_18_closed + apr_18_closed + may_18_closed + jun_18_closed + jul_18_closed'
 
+# Can't do CFA because not enough data
+# cfa_dat <- 
+#   analys_data %>% 
+#   filter(oct_17_closed >= 0)
+# 
+# t <- cfa(model, cfa_dat)
+# summary(t)
+# t2 <- lavScores(t)
+# predict(t)  
+
+# IRT latent scores would be same issue
+
+# Weighting?
+
+# first attempt: weighting those with all 10 indicators evenly (each 10%) and those with less than 10,
+#                 have the jul_18 indicator weighed '# missing X 10%). Rationale is if they're missing
+#                 missing data they started recently thus, the later months should be more indicative
+#                 of actual perf (rather than when just starting out)
+
+nov <-
+  data_eda %>% 
+  filter(hire_month == "Aug" & hire_year == 2017) %>% 
+  mutate(perf_overall_wtd = (nov_17_closed*.10) + (dec_17_closed*.10) + (jan_18_closed*.10) + 
+           (feb_18_closed*.10) + (mar_18_closed*.10) + (apr_18_closed*.10) + (may_18_closed*.10) +
+           (jun_18_closed*.10) + (jul_18_closed*.20))
+dec <-
+  data_eda %>% 
+  filter(hire_month == "Sep" & hire_year == 2017) %>% 
+  mutate(perf_overall_wtd = (dec_17_closed*.10) + (jan_18_closed*.10) + 
+           (feb_18_closed*.10) + (mar_18_closed*.10) + (apr_18_closed*.10) + (may_18_closed*.10) +
+           (jun_18_closed*.10) + (jul_18_closed*.30))
+
+jan <-
+  data_eda %>% 
+  filter(hire_month == "Oct" & hire_year == 2017) %>% 
+  mutate(perf_overall_wtd = (jan_18_closed*.10) + 
+           (feb_18_closed*.10) + (mar_18_closed*.10) + (apr_18_closed*.10) + (may_18_closed*.10) +
+           (jun_18_closed*.10) + (jul_18_closed*.40))
+
+feb <-
+  data_eda %>% 
+  filter(hire_month == "Nov" & hire_year == 2017) %>% 
+  mutate(perf_overall_wtd = 
+           (feb_18_closed*.10) + (mar_18_closed*.10) + (apr_18_closed*.10) + (may_18_closed*.10) +
+           (jun_18_closed*.10) + (jul_18_closed*.50))
+
+mar <-
+  data_eda %>% 
+  filter(hire_month == "Dec" & hire_year == 2017) %>% 
+  mutate(perf_overall_wtd = 
+           (mar_18_closed*.10) + (apr_18_closed*.10) + (may_18_closed*.10) +
+           (jun_18_closed*.10) + (jul_18_closed*.60))
+
+apr <-
+  data_eda %>% 
+  filter(hire_month == "Jan" & hire_year == 2018) %>% 
+  mutate(perf_overall_wtd = 
+           (apr_18_closed*.10) + (may_18_closed*.10) +
+           (jun_18_closed*.10) + (jul_18_closed*.70))
+
+may <-
+  data_eda %>% 
+  filter(hire_month == "Feb" & hire_year == 2018) %>% 
+  mutate(perf_overall_wtd = 
+           (may_18_closed*.10) +
+           (jun_18_closed*.10) + (jul_18_closed*.80))
+
+jun <-
+  data_eda %>% 
+  filter(hire_month == "Mar" & hire_year == 2018) %>% 
+  mutate(perf_overall_wtd = 
+           (jun_18_closed*.10) + (jul_18_closed*.90))
+
+jul <-
+  data_eda %>% 
+  filter(hire_month == "Apr" & hire_year == 2018) %>% 
+  mutate(perf_overall_wtd = (jul_18_closed*1))
+
+oct <- 
+  data_eda %>% 
+  filter(hire_date < "2017-08-01") %>% 
+  mutate(perf_overall_wtd = perf_overall_avg)
+
+data_eda <- bind_rows(oct, nov, dec, jan, feb, mar, apr, may, jun, jul)
+
+mean(data_eda$perf_overall_avg, na.rm = TRUE)
+mean(data_eda$perf_overall_wtd, na.rm = TRUE)
+
+# No diff in cor between standard average and weighted average; r's = .19
+data_eda %>% 
+  select(perf_overall_avg, perf_overall_wtd, fit_index) %>% 
+  corr.test(., use = "pairwise")
+
+# Met Performance Goal 
+## No need to weight; client apparently expects everyone to hit goal after first two months
+
+## 1 = met, 0 = not met
+perf_goal_met <- data_eda %>% 
+  select(oct_17_closed:jul_18_closed) %>% 
+  mutate(oct_17_goal_met = if_else(oct_17_closed >= 8,1,0),
+         nov_17_goal_met = if_else(nov_17_closed >= 8,1,0),
+         dec_17_goal_met = if_else(dec_17_closed >= 8,1,0),
+         jan_18_goal_met = if_else(jan_18_closed >= 8,1,0),
+         feb_18_goal_met = if_else(feb_18_closed >= 8,1,0),
+         mar_18_goal_met = if_else(mar_18_closed >= 8,1,0),
+         apr_18_goal_met = if_else(apr_18_closed >= 8,1,0),
+         may_18_goal_met = if_else(may_18_closed >= 8,1,0),
+         jun_18_goal_met = if_else(jun_18_closed >= 8,1,0),
+         jul_18_goal_met = if_else(jul_18_closed >= 8,1,0)) %>% 
+  select(oct_17_goal_met:jul_18_goal_met)
+
+data_eda$perf_goal_met <- rowMeans(perf_goal_met, na.rm = TRUE)
+
+# Similar r's
+data_eda %>% 
+  select(perf_overall_avg, perf_overall_wtd, perf_goal_met, fit_index) %>% 
+  corr.test(., use = "pairwise")
+
+# Dichotomous Met Perf Goal
+data_eda <-
+  data_eda %>% 
+  mutate(perf_goal_met_dich = ifelse(perf_goal_met == 1,1,0))
+
+table(data_eda$perf_goal_met_dich, data_eda$recommendation_category)
