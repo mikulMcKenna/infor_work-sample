@@ -2,12 +2,13 @@
 # Role: Behavioral Analyst
 # Project: Work Sample
 
-# Step 1: Load packages ---------
+# Step 1: load packages ---------
 library("tidyverse")
 library("readxl")
 library("lubridate")
 library("janitor")
 library("skimr")
+library("psych")
 
 
 # Step 2: read in and reformat necessary data ---------
@@ -89,7 +90,133 @@ skim(clean_noPerf)
 ## Checking for missing assessment data
 clean_noPerf %>% 
   count(is.na(fit_index))
+# 1 candidate missing assessment data: Applegate, Joseph
 
 clean_noPerf_noAssm <- clean_noPerf %>% 
   add_count(is.na(fit_index)) %>% 
-  filter(n != 1)
+  filter(n != 1) %>% 
+  select(-is.na(fit_index), -n)
+
+data <- clean_noPerf_noAssm
+
+rm(clean, clean_noPerf, clean_noPerf_noAssm, dupes, t)
+
+# Step 4: data munging --------
+
+data_eda <- 
+  data %>% 
+  mutate(hire_date_short = ym(hire_date, label = TRUE),
+         hire_year = year(hire_date))
+table(data_eda$hire_month, data_eda$hire_year)  
+
+data_eda %>% 
+  ggplot(aes(x = days_employed)) +
+  geom_histogram()
+
+# Removing first two months of perf for candidates hired within available perf data
+data_eda <- data_eda %>% 
+  mutate(oct_17_closed = ifelse(hire_year == 2017 & hire_month == "Aug", NA, oct_17_closed),
+         oct_17_closed = ifelse(hire_year == 2017 & hire_month == "Sep", NA, oct_17_closed),
+         nov_17_closed = ifelse(hire_year == 2017 & hire_month == "Sep", NA, nov_17_closed),
+         nov_17_closed = ifelse(hire_year == 2017 & hire_month == "Oct", NA, nov_17_closed),
+         dec_17_closed = ifelse(hire_year == 2017 & hire_month == "Oct", NA, dec_17_closed),
+         dec_17_closed = ifelse(hire_year == 2017 & hire_month == "Nov", NA, dec_17_closed),
+         jan_18_closed = ifelse(hire_year == 2017 & hire_month == "Nov", NA, jan_18_closed),
+         jan_18_closed = ifelse(hire_year == 2017 & hire_month == "Dec", NA, jan_18_closed),
+         feb_18_closed = ifelse(hire_year == 2017 & hire_month == "Dec", NA, feb_18_closed),
+         feb_18_closed = ifelse(hire_year == 2018 & hire_month == "Jan", NA, feb_18_closed),
+         mar_18_closed = ifelse(hire_year == 2018 & hire_month == "Jan", NA, mar_18_closed),
+         mar_18_closed = ifelse(hire_year == 2018 & hire_month == "Feb", NA, mar_18_closed),
+         apr_18_closed = ifelse(hire_year == 2018 & hire_month == "Feb", NA, apr_18_closed),
+         apr_18_closed = ifelse(hire_year == 2018 & hire_month == "Mar", NA, apr_18_closed),
+         may_18_closed = ifelse(hire_year == 2018 & hire_month == "Mar", NA, may_18_closed),
+         may_18_closed = ifelse(hire_year == 2018 & hire_month == "Apr", NA, may_18_closed),
+         jun_18_closed = ifelse(hire_year == 2018 & hire_month == "Apr", NA, jun_18_closed))
+         # jun_18_closed = ifelse(hire_year == 2018 & hire_month == "May", NA, jun_18_closed),
+         # jul_18_closed = ifelse(hire_year == 2018 & hire_month == "May", NA, jul_18_closed),
+         # jul_18_closed = ifelse(hire_year == 2018 & hire_month == "Jun", NA, jul_18_closed),
+
+# Step 5: Data file summary -----------
+
+# Back to original dataset for summary slide
+mean(raw$days_employed)
+range(raw$fit_index, na.rm = TRUE)
+table(raw$recommendation_category)
+
+# Step 6: Descriptives -----------
+
+# Demographics
+## Ethnicity
+data_eda %>% 
+  mutate(ethnicity_clean = ifelse(is.na(ethnicity_clean), "Ethnicity Unknown", ethnicity_clean)) %>% 
+  group_by(ethnicity_clean) %>% 
+  count() %>% 
+  ggplot(aes(reorder(ethnicity_clean, nn), nn)) +
+  geom_col(fill = "#D51F27", width = .75) +
+  geom_text(aes(label=nn), hjust=-.35, size = 3) +
+  coord_flip() + 
+  scale_y_continuous(expand = c(0,0), limits = c(0,175)) +
+  theme_classic() +
+  labs(x = "", y = "") + 
+  theme(panel.background = element_rect(fill = "#F2F2F2"),
+        plot.background = element_rect(fill = "#F2F2F2", color = "#F2F2F2")) +
+  NULL
+
+## Gender ## NEED TO FIGURE OUT
+data_eda %>% 
+  # mutate(gender = ifelse(is.na(ethnicity_clean), "Ethnicity Unknown", ethnicity_clean)) %>% 
+  group_by(gender) %>% 
+  summarise (n = n()) %>%
+  mutate(perc = n / sum(n)) %>% 
+  ggplot(aes(x = gender, y = perc, fill = gender)) +
+  geom_bar(stat = "identity", position = stacked) +
+  geom_text(aes(label=n), vjust=-.35) +
+  scale_y_continuous(expand = c(0,0), limits = c(0,1), labels = scales::percent) +
+  theme_classic() +
+  labs(x = "", y = "") + 
+  theme(panel.background = element_rect(fill = "#F2F2F2"),
+        plot.background = element_rect(fill = "#F2F2F2", color = "#F2F2F2")) +
+  coord_flip()
+
+## Age distribution
+data_eda %>% 
+  ggplot(aes(age_clean)) +
+  theme_classic() +
+  geom_histogram(bins = 20, color = "white", fill = "#D51F27") +
+  scale_x_continuous(breaks = seq(0,70,10), limits = c(0,70)) +
+  scale_y_continuous(expand = c(0,0)) +
+  labs(x = "", y = NULL) + 
+  theme(panel.background = element_rect(fill = "#F2F2F2"),
+        plot.background = element_rect(fill = "#F2F2F2", color = "#F2F2F2"))
+
+# Assessment
+
+## Fit Index
+data_eda %>% 
+  ggplot(aes(fit_index)) +
+  theme_classic() +
+  geom_histogram(bins = 20, color = "white", fill = "#D51F27") +
+  geom_vline(xintercept = mean(data_eda$fit_index), color = "black", size = 1, alpha = .55) +
+  scale_x_continuous(breaks = seq(0,110,10), limits = c(0,100)) +
+  scale_y_continuous(expand = c(0,0)) +
+  labs(x = "Fit Index", y = NULL) + 
+  theme(panel.background = element_rect(fill = "#F2F2F2"),
+        plot.background = element_rect(fill = "#F2F2F2", color = "#F2F2F2"))
+
+
+
+
+
+
+
+
+
+
+
+t <- data_eda %>% 
+  select(fit_index, oct_17_closed:jul_18_closed) %>% 
+  corr.test(., use = "pairwise")
+rcor <- as_tibble(t[["r"]])
+rn <- as_tibble(t[["n"]])
+
+
