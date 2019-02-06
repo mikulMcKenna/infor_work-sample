@@ -9,6 +9,7 @@ library("lubridate")
 library("janitor")
 library("skimr")
 library("psych")
+library("ggcorrplot")
 
 
 # Step 2: read in and reformat necessary data ---------
@@ -203,20 +204,96 @@ data_eda %>%
   theme(panel.background = element_rect(fill = "#F2F2F2"),
         plot.background = element_rect(fill = "#F2F2F2", color = "#F2F2F2"))
 
+mean(data_eda$fit_index)
 
 
+## Recommendation
+data_eda %>% 
+  group_by(recommendation_category) %>% 
+  summarize(rec_mean = mean(fit_index),
+            n = n()) %>% 
+  ggplot(aes(recommendation_category, rec_mean)) +
+  theme_classic() +
+  geom_point(col="#D51F27", size=5) +   # Draw points
+  geom_segment(aes(x=recommendation_category, 
+                   xend=recommendation_category, 
+                   y=min(0), 
+                   yend=max(100)), 
+               linetype="dashed", 
+               size=0.1) +  
+  geom_text(aes(label = n), vjust = -1, size = 5) +
+  scale_x_discrete(limits = c("REC", "RQ", "RR", "NR")) +
+  scale_y_continuous(limits = c(0,100)) +
+  labs(y = "Fit Index", x = "") +
+  theme(panel.background = element_rect(fill = "#F2F2F2"),
+        plot.background = element_rect(fill = "#F2F2F2", color = "#F2F2F2")) +
+  coord_flip()
 
 
+# Performance
 
+# Correlation
 
-
-
-
-
-t <- data_eda %>% 
-  select(fit_index, oct_17_closed:jul_18_closed) %>% 
+  data_eda %>% 
+  select(oct_17_closed:jul_18_closed) %>% 
   corr.test(., use = "pairwise")
-rcor <- as_tibble(t[["r"]])
-rn <- as_tibble(t[["n"]])
+t <- as_tibble(t[["r"]])
+n <- as_tibble(t[["n"]])
+write_csv(t, "corr_matr_perf.csv")
+# ggcorrplot(t, hc.order = TRUE, type = "upper", lab = TRUE,
+#            outline.col = "white",
+#            ggtheme = ggplot2::theme_classic,
+#            colors = c("gray", "white", "#D51F27")) +
+#   theme(panel.background = element_rect(fill = "#F2F2F2"),
+#         plot.background = element_rect(fill = "#F2F2F2", color = "#F2F2F2"))
 
+# Plot
+perf_count <- data_eda %>% 
+  select(oct_17_closed:jul_18_closed) %>% 
+  mutate(oct_17_tally = if_else(oct_17_closed > 0,1,0),
+         nov_17_tally = if_else(nov_17_closed > 0,1,0),
+         dec_17_tally = if_else(dec_17_closed > 0,1,0),
+         jan_18_tally = if_else(jan_18_closed > 0,1,0),
+         feb_18_tally = if_else(feb_18_closed > 0,1,0),
+         mar_18_tally = if_else(mar_18_closed > 0,1,0),
+         apr_18_tally = if_else(apr_18_closed > 0,1,0),
+         may_18_tally = if_else(may_18_closed > 0,1,0),
+         jun_18_tally = if_else(jun_18_closed > 0,1,0),
+         jul_18_tally = if_else(jul_18_closed > 0,1,0)) %>% 
+  select(oct_17_tally:jul_18_tally)
+
+
+
+t <- tibble(colSums(perf_count, na.rm = TRUE),
+               month = c("Oct 2017",
+                         "Nov 2017",
+                         "Dec 2017",
+                         "Jan 2018",
+                         "Feb 2018",
+                         "Mar 2018",
+                         "Apr 2018",
+                         "May 2018",
+                         "Jun 2018",
+                         "Jul 2018")) %>% 
+  rownames_to_column() 
+
+rm(corr, data, n, perf_count, raw, rcor, rn, t)
+
+# Step 7: Analyses -------------
+
+# Performance Modeling
+
+# First investigating how an overall avg variable works
+## Overall Avg is straight average all available perf indicator months (first 2 still removed)
+analys_data <-
+data_eda %>%  
+  select(oct_17_closed:jul_18_closed) 
+data_eda$perf_overall_avg <- rowMeans(analys_data, na.rm = TRUE)
+
+# Not awful; r = .19
+data_eda %>% 
+  select(perf_overall_avg, fit_index) %>% 
+  corr.test(., use = "pairwise")
+
+  
 
